@@ -47,8 +47,11 @@ jobs:
         run: |
           APK_PATH=$(find LSFG-Android-Application -path '*/release/*.apk' | grep -v '\.idsig' | head -1)
           echo "path=$APK_PATH" >> $GITHUB_OUTPUT
-          TAG="${{ github.ref_name }}"
-          echo "name=LLS-${TAG}.apk" >> $GITHUB_OUTPUT
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "name=LLS-${{ github.ref_name }}.apk" >> $GITHUB_OUTPUT
+          else
+            echo "name=LLS-dev.apk" >> $GITHUB_OUTPUT
+          fi
 
       - name: Zipalign
         run: |
