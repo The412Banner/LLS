@@ -3,7 +3,7 @@ index 2d79f15..e6bd64e 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -11,6 +11,10 @@ set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
- 
+
  if(LSFGVK_ANDROID_WINE)
      add_compile_definitions(LSFGVK_ANDROID_WINE=1)
 +    # Expose Android-specific Vulkan extension types
@@ -11,80 +11,5 @@ index 2d79f15..e6bd64e 100644
 +    # all subprojects.
 +    add_compile_definitions(VK_USE_PLATFORM_ANDROID_KHR=1)
  endif()
- 
+
  # subprojects
-diff --git a/include/context.hpp b/include/context.hpp
-index 3438e48..002c510 100644
---- a/include/context.hpp
-+++ b/include/context.hpp
-@@ -29,7 +29,8 @@ class LsContext {
-     /// @throws LSFG::vulkan_error if any Vulkan call fails.
-     ///
-     LsContext(const Hooks::DeviceInfo& info, VkSwapchainKHR swapchain,
--        VkExtent2D extent, const std::vector<VkImage>& swapchainImages);
-+        VkExtent2D extent, VkFormat swapchainFormat,
-+        const std::vector<VkImage>& swapchainImages);
- 
-     ///
-     /// Custom present logic.
-diff --git a/src/context.cpp b/src/context.cpp
-index e00804a..4f4c271 100644
---- a/src/context.cpp
-+++ b/src/context.cpp
-@@ -24,7 +24,8 @@
- #include <array>
- 
- LsContext::LsContext(const Hooks::DeviceInfo& info, VkSwapchainKHR swapchain,
--        VkExtent2D extent, const std::vector<VkImage>& swapchainImages)
-+        VkExtent2D extent, VkFormat swapchainFormat,
-+        const std::vector<VkImage>& swapchainImages)
-         : swapchain(swapchain), swapchainImages(swapchainImages),
-           extent(extent) {
-     // get updated configuration
-@@ -62,11 +63,28 @@ LsContext::LsContext(const Hooks::DeviceInfo& info, VkSwapchainKHR swapchain,
- 
-         if (conf.multiplier <= 1) return;
-     }
--    // we could take the format from the swapchain,
--    // but honestly this is safer.
--    const VkFormat format = conf.hdr
--        ? VK_FORMAT_R8G8B8A8_UNORM
--        : VK_FORMAT_R16G16B16A16_SFLOAT;
-+    // Honor the actual swapchain format. vkCmdBlitImage does not swizzle
-+    // channels, so an RGBA intermediate blitted into a BGRA swapchain image
-+    // produces a red/blue swap. Falling back to the inverted-ternary defaults
-+    // when the swapchain format is not directly usable as a transfer target.
-+    VkFormat format = swapchainFormat;
-+    switch (swapchainFormat) {
-+        case VK_FORMAT_R8G8B8A8_UNORM:
-+        case VK_FORMAT_R8G8B8A8_SRGB:
-+        case VK_FORMAT_B8G8R8A8_UNORM:
-+        case VK_FORMAT_B8G8R8A8_SRGB:
-+        case VK_FORMAT_A8B8G8R8_UNORM_PACK32:
-+        case VK_FORMAT_A8B8G8R8_SRGB_PACK32:
-+        case VK_FORMAT_A2R10G10B10_UNORM_PACK32:
-+        case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
-+        case VK_FORMAT_R16G16B16A16_SFLOAT:
-+            break;
-+        default:
-+            format = conf.hdr
-+                ? VK_FORMAT_R16G16B16A16_SFLOAT
-+                : VK_FORMAT_R8G8B8A8_UNORM;
-+            break;
-+    }
- 
-     // prepare textures for lsfg
-     std::array<int, 2> fds{};
-diff --git a/src/hooks.cpp b/src/hooks.cpp
-index bd1368e..80c811a 100644
---- a/src/hooks.cpp
-+++ b/src/hooks.cpp
-@@ -182,7 +182,7 @@ namespace {
-             swapchainToDeviceTable.emplace(*pSwapchain, device);
-             swapchains.emplace(*pSwapchain, LsContext(
-                 deviceInfo, *pSwapchain, pCreateInfo->imageExtent,
--                swapchainImages
-+                pCreateInfo->imageFormat, swapchainImages
-             ));
- 
-             std::cerr << "lsfg-vk: Swapchain context " <<
