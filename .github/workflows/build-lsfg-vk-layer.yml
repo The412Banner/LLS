@@ -1,0 +1,65 @@
+name: Build lsfg-vk Layer (Android arm64)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - lsfg-vk-color-fix
+    paths:
+      - 'patches/**'
+      - '.github/workflows/build-lsfg-vk-layer.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Cross-compile liblsfg-vk-layer.so
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Apply color-format patch
+        working-directory: lsfg-vk-android
+        run: |
+          git apply --verbose ../patches/0001-lsfg-vk-color-format-fix.patch
+          echo "--- patched files ---"
+          git diff --stat
+
+      - name: Install NDK 27 and CMake 3.22.1
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "ndk;27.0.12077973" \
+            "cmake;3.22.1"
+
+      - name: Build layer for arm64-v8a
+        working-directory: lsfg-vk-android
+        env:
+          ANDROID_ABI: arm64-v8a
+          ANDROID_PLATFORM: android-28
+        run: |
+          export ANDROID_NDK="$ANDROID_HOME/ndk/27.0.12077973"
+          echo "Using NDK at: $ANDROID_NDK"
+          test -f "$ANDROID_NDK/build/cmake/android.toolchain.cmake"
+          chmod +x scripts/build/android.sh
+          ./scripts/build/android.sh Release
+
+      - name: Stage artifacts under expected layer name
+        working-directory: lsfg-vk-android
+        run: |
+          mkdir -p out
+          cp build-android/liblsfg-vk.so out/liblsfg-vk-layer.so
+          cp VkLayer_LS_frame_generation.json out/
+          ls -l out/
+          file out/liblsfg-vk-layer.so
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lsfg-vk-layer-android-arm64
+          path: lsfg-vk-android/out/
+          if-no-files-found: error
