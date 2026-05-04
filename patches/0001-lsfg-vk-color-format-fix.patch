@@ -1,5 +1,4 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 2d79f15..e6bd64e 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -11,6 +11,10 @@ set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
@@ -13,3 +12,12 @@ index 2d79f15..e6bd64e 100644
  endif()
 
  # subprojects
+@@ -51,6 +55,8 @@ target_link_libraries(lsfg-vk PRIVATE
+
+ if(ANDROID)
+     target_link_libraries(lsfg-vk PRIVATE android)
++    # Newer framegen calls __android_log_print — link liblog.so explicitly.
++    target_link_libraries(lsfg-vk PRIVATE log)
+     target_include_directories(lsfg-vk PRIVATE "${ANDROID_NDK}/sources/android/native_app_glue")
+ endif()
+
