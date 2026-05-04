@@ -1,3 +1,18 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 2d79f15..e6bd64e 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -11,6 +11,10 @@ set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
+ 
+ if(LSFGVK_ANDROID_WINE)
+     add_compile_definitions(LSFGVK_ANDROID_WINE=1)
++    # Expose Android-specific Vulkan extension types
++    # (VkAndroidHardwareBufferFormatPropertiesANDROID etc.) to volk and to
++    # all subprojects.
++    add_compile_definitions(VK_USE_PLATFORM_ANDROID_KHR=1)
+ endif()
+ 
+ # subprojects
 diff --git a/include/context.hpp b/include/context.hpp
 index 3438e48..002c510 100644
 --- a/include/context.hpp
